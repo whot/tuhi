@@ -460,15 +460,28 @@ def cmd_fetch(manager, args):
 class KeteShellHandler(logging.StreamHandler):
     def __init__(self):
         super(KeteShellHandler, self).__init__(sys.stdout)
+        self.createLock()
         self.setFormatter(logging.Formatter(log_format))
+        self.need_lock = False
+
+    def emit(self, record):
+        if self.need_lock:
+            self.acquire()
+        super(KeteShellHandler, self).emit(record)
+        if self.need_lock:
+            self.release()
 
     def set_normal_mode(self):
         self.setFormatter(logging.Formatter(log_format))
         self.terminator = '\n'
+        self.need_lock = False
+        self.acquire()
 
     def set_prompt_mode(self, prompt):
+        self.release()
         self.setFormatter(logging.Formatter('\r{}'.format(log_format)))
         self.terminator = '\n{}'.format(prompt)
+        self.need_lock = True
 
 
 class TuhiShell(cmd.Cmd, object):
@@ -482,6 +495,8 @@ class TuhiShell(cmd.Cmd, object):
         self._log_handler = KeteShellHandler()
         logger.removeHandler(logger_handler)
         logger.addHandler(self._log_handler)
+        # temporary variable to postpone the start of the thread during postcmd()
+        self._postpone_thread = None
 
     def emptyline(self):
         # make sure we do not re-enter the last typed command
@@ -510,6 +525,9 @@ class TuhiShell(cmd.Cmd, object):
         # overwrite the logger facility to remove the current prompt and append
         # a new one
         self._log_handler.set_prompt_mode(self.prompt)
+        if self._postpone_thread is not None:
+            self._postpone_thread.start()
+            self._postpone_thread = None
         return stop
 
     def run(self):
@@ -564,7 +582,7 @@ class TuhiShell(cmd.Cmd, object):
 
         l = Listener(self._manager, address)
         t = threading.Thread(target=l.run)
-        t.start()
+        self._postpone_thread = t
         self._listeners[address] = (l, t)
 
 
