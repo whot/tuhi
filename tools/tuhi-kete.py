@@ -15,9 +15,11 @@ from gi.repository import GObject, Gio, GLib
 import sys
 import argparse
 import os
+import cmd
 import json
 import logging
 import select
+import threading
 import time
 import svgwrite
 
@@ -451,6 +453,61 @@ def cmd_fetch(manager, args):
     Fetcher(manager, args.address, args.index).run()
 
 
+class TuhiShell(cmd.Cmd, object):
+    intro = 'Tuhi shell control'
+    prompt = 'tuhi> '
+
+    def __init__(self, manager, completekey='tab', stdin=None, stdout=None):
+        super(TuhiShell, self).__init__(completekey, stdin, stdout)
+        self._manager = manager
+        self._listeners = []
+
+    def emptyline(self):
+        # make sure we do not re-enter the last typed command
+        pass
+
+    def do_EOF(self, arg):
+        '''leave the shell'''
+        return self.do_exit(arg)
+
+    def do_exit(self, args):
+        '''leave the shell'''
+        self._manager.quit()
+        for l, t in self._listeners:
+            t.join()
+        return True
+
+    def run(self):
+        self.cmdloop()
+
+    def do_help(self, arg):
+        '''list available commands'''
+        commands = ['exit', 'help', 'list', 'listen']
+        print(f'Available commands: {", ".join(commands)}')
+
+    def do_list(self, arg):
+        '''list known devices'''
+        cmd_list(self._manager, arg)
+
+    def do_listen(self, args):
+        if args is '':
+            print('Usage: listen 12:34:56:AB:CD:EF')
+            return
+        for d in self._manager.devices:
+            if d.address == args and d.listening:
+                print('Already listening on {}'.format(args))
+                return
+        l = Listener(self._manager, args)
+        t = threading.Thread(target=l.run)
+        t.start()
+        self._listeners.append((l, t))
+
+
+def cmd_shell(manager, args):
+    shell = TuhiShell(manager)
+    shell.run()
+
+
 def parse_list(parser):
     sub = parser.add_parser('list', help='list known devices')
     sub.set_defaults(func=cmd_list)
@@ -483,6 +540,11 @@ def parse_fetch(parser):
     sub.set_defaults(func=cmd_fetch)
 
 
+def parse_shell(parser):
+    sub = parser.add_parser('shell', help='run a bash-like shell')
+    sub.set_defaults(func=cmd_shell)
+
+
 def parse(args):
     desc = 'Commandline client to the Tuhi DBus daemon'
     parser = argparse.ArgumentParser(description=desc)
@@ -496,6 +558,7 @@ def parse(args):
     parse_pair(subparser)
     parse_listen(subparser)
     parse_fetch(subparser)
+    parse_shell(subparser)
 
     return parser.parse_args(args[1:])
 
@@ -508,7 +571,7 @@ def main(args):
     try:
         with TuhiKeteManager() as mgr:
             if not hasattr(args, 'func'):
-                args.func = cmd_list
+                args.func = cmd_shell
 
             args.func(mgr, args)
 
