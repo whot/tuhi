@@ -109,6 +109,7 @@ class TuhiDevice(GObject.Object):
     def _on_drawing_received(self, device, drawing):
         logger.debug('Drawing received')
         self._tuhi_dbus_device.add_drawing(drawing)
+        self.config.new_drawing(self.address, drawing)
 
     def _on_fetching_finished(self, device, bluez_device):
         bluez_device.disconnect_device()

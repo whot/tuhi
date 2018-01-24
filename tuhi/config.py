@@ -97,3 +97,13 @@ class TuhiConfig(GObject.Object):
         config = configparser.ConfigParser()
         config.read(path)
         self._devices[address] = config['Device']
+
+    def new_drawing(self, address, drawing):
+        assert is_btaddr(address)
+        assert drawing is not None
+
+        logger.debug("{}: adding new drawing, timestamp {}".format(address, drawing.timestamp))
+        path = os.path.join(ROOT_PATH, address, "{}.json".format(drawing.timestamp))
+
+        with open(path, "w") as f:
+            f.write(drawing.to_json())
