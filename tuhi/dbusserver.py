@@ -49,7 +49,7 @@ INTROSPECTION_XML = """
     <property type='b' name='Listening' access='read'>
       <annotation name='org.freedesktop.DBus.Property.EmitsChangedSignal' value='true'/>
     </property>
-    <property type='u' name='DrawingsAvailable' access='read'>
+    <property type='at' name='DrawingsAvailable' access='read'>
       <annotation name='org.freedesktop.DBus.Property.EmitsChangedSignal' value='true'/>
     </property>
 
@@ -100,7 +100,7 @@ class TuhiDBusDevice(GObject.Object):
         self.name = device.name
         self.btaddr = device.address
         self.width, self.height = 0, 0
-        self.drawings = []
+        self.drawings = {}
         self.paired = device.paired
         self._listening = False
         self._listening_client = None
@@ -193,7 +193,10 @@ class TuhiDBusDevice(GObject.Object):
             h = GLib.Variant.new_uint32(self.height)
             return GLib.Variant.new_tuple(w, h)
         elif propname == 'DrawingsAvailable':
-            return GLib.Variant.new_uint32(len(self.drawings))
+            ts = GLib.Variant.new_array(GLib.VariantType('t'),
+                                        [GLib.Variant.new_uint64(t)
+                                            for t in self.drawings.keys()])
+            return ts
         elif propname == 'Listening':
             return GLib.Variant.new_boolean(self.listening)
 
@@ -267,18 +270,21 @@ class TuhiDBusDevice(GObject.Object):
         index = args[0]
         try:
             drawing = self.drawings[index]
-        except IndexError:
+        except KeyError:
             return ''
         else:
             return drawing.to_json()
 
     def add_drawing(self, drawing):
-        self.drawings.append(drawing)
+        self.drawings[drawing.timestamp] = drawing
 
         props = GLib.VariantBuilder(GLib.VariantType('a{sv}'))
+
+        ts = GLib.Variant.new_array(GLib.VariantType('t'),
+                                    [GLib.Variant.new_uint64(t)
+                                        for t in self.drawings.keys()])
         de = GLib.Variant.new_dict_entry(GLib.Variant.new_string('DrawingsAvailable'),
-                                         GLib.Variant.new_variant(
-                                             GLib.Variant.new_uint32(len(self.drawings))))
+                                         GLib.Variant.new_variant(ts))
         props.add_value(de)
         props = props.end()
         inval_props = GLib.VariantBuilder(GLib.VariantType('as'))
