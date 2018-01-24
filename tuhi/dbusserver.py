@@ -270,7 +270,7 @@ class TuhiDBusDevice(GObject.Object):
         except IndexError:
             return ''
         else:
-            return drawing.json()
+            return drawing.to_json()
 
     def add_drawing(self, drawing):
         self.drawings.append(drawing)
