@@ -477,12 +477,15 @@ class TuhiShell(cmd.Cmd, object):
             t.join()
         return True
 
+    def do_quit(self, args):
+        return self.do_exit(args)
+
     def run(self):
         self.cmdloop()
 
     def do_help(self, arg):
         '''list available commands'''
-        commands = ['exit', 'help', 'list', 'listen']
+        commands = ['exit', 'help', 'list', 'listen', 'quit']
         print(f'Available commands: {", ".join(commands)}')
 
     def do_list(self, arg):
