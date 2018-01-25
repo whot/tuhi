@@ -496,11 +496,19 @@ class TuhiShell(cmd.Cmd, object):
         if args is '':
             print('Usage: listen 12:34:56:AB:CD:EF')
             return
+
+        address = args
         for d in self._manager.devices:
-            if d.address == args and d.listening:
-                print('Already listening on {}'.format(args))
-                return
-        l = Listener(self._manager, args)
+            if d.address == address:
+                if d.listening:
+                    print(f'Already listening on {address}')
+                    return
+                break
+        else:
+            print(f'Device {address} not found')
+            return
+
+        l = Listener(self._manager, address)
         t = threading.Thread(target=l.run)
         t.start()
         self._listeners.append((l, t))
