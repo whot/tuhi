@@ -460,7 +460,7 @@ class TuhiShell(cmd.Cmd, object):
     def __init__(self, manager, completekey='tab', stdin=None, stdout=None):
         super(TuhiShell, self).__init__(completekey, stdin, stdout)
         self._manager = manager
-        self._listeners = []
+        self._listeners = {}
 
     def emptyline(self):
         # make sure we do not re-enter the last typed command
@@ -473,7 +473,7 @@ class TuhiShell(cmd.Cmd, object):
     def do_exit(self, args):
         '''leave the shell'''
         self._manager.quit()
-        for l, t in self._listeners:
+        for l, t in self._listeners.values():
             t.join()
         return True
 
@@ -494,24 +494,46 @@ class TuhiShell(cmd.Cmd, object):
 
     def do_listen(self, args):
         if args is '':
-            print('Usage: listen 12:34:56:AB:CD:EF')
+            print('Usage: listen 12:34:56:AB:CD:EF [on|off]')
             return
 
-        address = args
+        args = args.split(' ')
+        address = args[0]
+        try:
+            mode = args[1]
+        except IndexError:
+            mode = 'on'
+
+        if mode != 'on' and mode != 'off':
+            print('Usage: listen 12:34:56:AB:CD:EF [on|off]')
+            return
+
         for d in self._manager.devices:
             if d.address == address:
-                if d.listening:
+                if mode == 'on' and d.listening:
                     print(f'Already listening on {address}')
+                    return
+                elif mode == 'off' and not d.listening:
+                    print(f'Not listening on {address}')
                     return
                 break
         else:
             print(f'Device {address} not found')
             return
 
+        if mode == 'off':
+            for addr, (l, t) in self._listeners.items():
+                if addr == address:
+                    l.device.stop_listening()
+                    t.join()
+                    del self._listeners[addr]
+                    break
+            return
+
         l = Listener(self._manager, address)
         t = threading.Thread(target=l.run)
         t.start()
-        self._listeners.append((l, t))
+        self._listeners[address] = (l, t)
 
 
 def cmd_shell(manager, args):
