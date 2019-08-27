@@ -1,3 +1,4 @@
+# vim: set expandtab shiftwidth=2 tabstop=8:
 version: 2
 jobs:
   build:
@@ -15,4 +16,21 @@ jobs:
             ninja -C builddir test
       - store_artifacts:
           path: ~/tuhi/builddir/meson-logs
+  flatpak:
+    docker:
+      - image: fedora:latest
+    steps:
+      - run:
+          command: |
+            dnf install -y flatpak-builder
+      - checkout:
+      - run:
+          command: |
+            flatpak-builder -v --user --force-clean _flatpak_build org.freedesktop.Tuhi.json
 
+workflows:
+  version: 2
+  compile_and_test:
+    jobs:
+      - build
+      - flatpak
